@@ -1,6 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Globalization;
 using System.Linq;
+using System.Text.RegularExpressions;
 
 namespace BTCPayServer.Client
 {
@@ -14,9 +17,10 @@ namespace BTCPayServer.Client
         public const string CanUseLightningNodeInStore = "btcpay.store.canuselightningnode";
         public const string CanModifyServerSettings = "btcpay.server.canmodifyserversettings";
         public const string CanModifyStoreSettings = "btcpay.store.canmodifystoresettings";
-        public const string CanModifyStoreWebhooks = "btcpay.store.webhooks.canmodifywebhooks";
+        public const string CanModifyWebhooks = "btcpay.store.webhooks.canmodifywebhooks";
         public const string CanModifyStoreSettingsUnscoped = "btcpay.store.canmodifystoresettings:";
         public const string CanViewStoreSettings = "btcpay.store.canviewstoresettings";
+        public const string CanViewReports = "btcpay.store.canviewreports";
         public const string CanViewInvoices = "btcpay.store.canviewinvoices";
         public const string CanCreateInvoice = "btcpay.store.cancreateinvoice";
         public const string CanModifyInvoices = "btcpay.store.canmodifyinvoices";
@@ -31,13 +35,12 @@ namespace BTCPayServer.Client
         public const string CanManageUsers = "btcpay.server.canmanageusers";
         public const string CanDeleteUser = "btcpay.user.candeleteuser";
         public const string CanManagePullPayments = "btcpay.store.canmanagepullpayments";
+        public const string CanArchivePullPayments = "btcpay.store.canarchivepullpayments";
+        public const string CanManagePayouts = "btcpay.store.canmanagepayouts";
+        public const string CanViewPayouts = "btcpay.store.canviewpayouts";
         public const string CanCreatePullPayments = "btcpay.store.cancreatepullpayments";
+        public const string CanViewPullPayments = "btcpay.store.canviewpullpayments";
         public const string CanCreateNonApprovedPullPayments = "btcpay.store.cancreatenonapprovedpullpayments";
-        public const string CanViewCustodianAccounts = "btcpay.store.canviewcustodianaccounts";
-        public const string CanManageCustodianAccounts = "btcpay.store.canmanagecustodianaccounts";
-        public const string CanDepositToCustodianAccounts = "btcpay.store.candeposittocustodianaccount";
-        public const string CanWithdrawFromCustodianAccounts = "btcpay.store.canwithdrawfromcustodianaccount";
-        public const string CanTradeCustodianAccount = "btcpay.store.cantradecustodianaccount";
         public const string Unrestricted = "unrestricted";
         public static IEnumerable<string> AllPolicies
         {
@@ -46,10 +49,11 @@ namespace BTCPayServer.Client
                 yield return CanViewInvoices;
                 yield return CanCreateInvoice;
                 yield return CanModifyInvoices;
-                yield return CanModifyStoreWebhooks;
+                yield return CanModifyWebhooks;
                 yield return CanModifyServerSettings;
                 yield return CanModifyStoreSettings;
                 yield return CanViewStoreSettings;
+                yield return CanViewReports;
                 yield return CanViewPaymentRequests;
                 yield return CanModifyPaymentRequests;
                 yield return CanModifyProfile;
@@ -67,14 +71,13 @@ namespace BTCPayServer.Client
                 yield return CanViewLightningInvoiceInStore;
                 yield return CanCreateLightningInvoiceInStore;
                 yield return CanManagePullPayments;
+                yield return CanArchivePullPayments;
                 yield return CanCreatePullPayments;
+                yield return CanViewPullPayments;
                 yield return CanCreateNonApprovedPullPayments;
-                yield return CanViewCustodianAccounts;
-                yield return CanManageCustodianAccounts;
-                yield return CanDepositToCustodianAccounts;
-                yield return CanWithdrawFromCustodianAccounts;
-                yield return CanTradeCustodianAccount;
                 yield return CanManageUsers;
+                yield return CanManagePayouts;
+                yield return CanViewPayouts;
             }
         }
         public static bool IsValidPolicy(string policy)
@@ -101,6 +104,16 @@ namespace BTCPayServer.Client
         public static bool IsUserPolicy(string policy)
         {
             return policy.StartsWith("btcpay.user", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static readonly CultureInfo _culture = new (CultureInfo.InvariantCulture.Name);
+        public static string DisplayName(string policy)
+        {
+            var p = policy.Split(".");
+            if (p.Length < 3 || p[0] != "btcpay") return policy;
+            var constName = typeof(Policies).GetFields().Select(f => f.Name).FirstOrDefault(f => f.Equals(p[^1], StringComparison.OrdinalIgnoreCase));
+            var perm = string.IsNullOrEmpty(constName) ? string.Join(' ', p[2..]) : Regex.Replace(constName, "([A-Z])", " $1", RegexOptions.Compiled).Trim();
+            return $"{_culture.TextInfo.ToTitleCase(p[1])}: {_culture.TextInfo.ToTitleCase(perm)}";
         }
     }
 
@@ -134,7 +147,7 @@ namespace BTCPayServer.Client
     {
         static Permission()
         {
-            Init();
+            PolicyMap = Init();
         }
 
         public static Permission Create(string policy, string scope = null)
@@ -235,38 +248,58 @@ namespace BTCPayServer.Client
             return subPolicies.Contains(subpolicy) || subPolicies.Any(s => ContainsPolicy(s, subpolicy));
         }
 
-        private static Dictionary<string, HashSet<string>> PolicyMap = new();
+        public static ReadOnlyDictionary<string, HashSet<string>> PolicyMap { get; private set; }
+    
 
-        private static void Init()
+        private static ReadOnlyDictionary<string, HashSet<string>> Init()
         {
-            PolicyHasChild(Policies.CanModifyStoreSettings,
-                Policies.CanManageCustodianAccounts,
+            var policyMap = new Dictionary<string, HashSet<string>>();
+            PolicyHasChild(policyMap, Policies.CanModifyStoreSettings,
                 Policies.CanManagePullPayments,
                 Policies.CanModifyInvoices,
                 Policies.CanViewStoreSettings,
-                Policies.CanModifyStoreWebhooks,
+                Policies.CanModifyWebhooks,
                 Policies.CanModifyPaymentRequests,
+                Policies.CanManagePayouts,
                 Policies.CanUseLightningNodeInStore);
 
-            PolicyHasChild(Policies.CanManageUsers, Policies.CanCreateUser);
-            PolicyHasChild(Policies.CanManagePullPayments, Policies.CanCreatePullPayments);
-            PolicyHasChild(Policies.CanCreatePullPayments, Policies.CanCreateNonApprovedPullPayments);
-            PolicyHasChild(Policies.CanModifyPaymentRequests, Policies.CanViewPaymentRequests);
-            PolicyHasChild(Policies.CanModifyProfile, Policies.CanViewProfile);
-            PolicyHasChild(Policies.CanUseLightningNodeInStore, Policies.CanViewLightningInvoiceInStore, Policies.CanCreateLightningInvoiceInStore);
-            PolicyHasChild(Policies.CanManageNotificationsForUser, Policies.CanViewNotificationsForUser);
-            PolicyHasChild(Policies.CanModifyServerSettings,
+            PolicyHasChild(policyMap,Policies.CanManageUsers, Policies.CanCreateUser);
+            PolicyHasChild(policyMap,Policies.CanManagePullPayments, Policies.CanCreatePullPayments, Policies.CanArchivePullPayments);
+            PolicyHasChild(policyMap,Policies.CanCreatePullPayments, Policies.CanCreateNonApprovedPullPayments);
+            PolicyHasChild(policyMap, Policies.CanCreateNonApprovedPullPayments, Policies.CanViewPullPayments);
+            PolicyHasChild(policyMap,Policies.CanModifyPaymentRequests, Policies.CanViewPaymentRequests);
+            PolicyHasChild(policyMap,Policies.CanModifyProfile, Policies.CanViewProfile);
+            PolicyHasChild(policyMap,Policies.CanUseLightningNodeInStore, Policies.CanViewLightningInvoiceInStore, Policies.CanCreateLightningInvoiceInStore);
+            PolicyHasChild(policyMap,Policies.CanManageNotificationsForUser, Policies.CanViewNotificationsForUser);
+            PolicyHasChild(policyMap,Policies.CanModifyServerSettings,
                 Policies.CanUseInternalLightningNode,
                 Policies.CanManageUsers);
-            PolicyHasChild(Policies.CanUseInternalLightningNode, Policies.CanCreateLightningInvoiceInternalNode, Policies.CanViewLightningInvoiceInternalNode);
-            PolicyHasChild(Policies.CanManageCustodianAccounts, Policies.CanViewCustodianAccounts);
-            PolicyHasChild(Policies.CanModifyInvoices, Policies.CanViewInvoices, Policies.CanCreateInvoice, Policies.CanCreateLightningInvoiceInStore);
-            PolicyHasChild(Policies.CanViewStoreSettings, Policies.CanViewInvoices, Policies.CanViewPaymentRequests);
+            PolicyHasChild(policyMap, Policies.CanUseInternalLightningNode, Policies.CanCreateLightningInvoiceInternalNode, Policies.CanViewLightningInvoiceInternalNode);
+            PolicyHasChild(policyMap, Policies.CanModifyInvoices, Policies.CanViewInvoices, Policies.CanCreateInvoice, Policies.CanCreateLightningInvoiceInStore);
+            PolicyHasChild(policyMap, Policies.CanViewStoreSettings, Policies.CanViewInvoices, Policies.CanViewPaymentRequests, Policies.CanViewReports, Policies.CanViewPullPayments, Policies.CanViewPayouts);
+            PolicyHasChild(policyMap, Policies.CanManagePayouts, Policies.CanViewPayouts);
+
+            var missingPolicies = Policies.AllPolicies.ToHashSet();
+            //recurse through the tree to see which policies are not included in the tree
+            foreach (var policy in policyMap)
+            {
+                missingPolicies.Remove(policy.Key);
+                foreach (var subPolicy in policy.Value)
+                {
+                    missingPolicies.Remove(subPolicy);
+                }
+            }
+
+            foreach (var missingPolicy in missingPolicies)
+            {
+                policyMap.Add(missingPolicy, new HashSet<string>());
+            }
+            return new ReadOnlyDictionary<string, HashSet<string>>(policyMap);
         }
 
-        private static void PolicyHasChild(string policy, params string[] subPolicies)
+        private static void PolicyHasChild(Dictionary<string, HashSet<string>>policyMap, string policy, params string[] subPolicies)
         {
-            if (PolicyMap.TryGetValue(policy, out var existingSubPolicies))
+            if (policyMap.TryGetValue(policy, out var existingSubPolicies))
             {
                 foreach (string subPolicy in subPolicies)
                 {
@@ -275,7 +308,7 @@ namespace BTCPayServer.Client
             }
             else
             {
-                PolicyMap.Add(policy, subPolicies.ToHashSet());
+                policyMap.Add(policy, subPolicies.ToHashSet());
             }
         }
 

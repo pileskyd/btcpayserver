@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -9,30 +8,18 @@ using BTCPayServer.Abstractions.Constants;
 using BTCPayServer.Abstractions.Contracts;
 using BTCPayServer.Abstractions.Extensions;
 using BTCPayServer.Client;
-using BTCPayServer.Components.StoreSelector;
 using BTCPayServer.Data;
 using BTCPayServer.Filters;
-using BTCPayServer.HostedServices;
 using BTCPayServer.Models;
 using BTCPayServer.Models.StoreViewModels;
-using BTCPayServer.Payments;
-using BTCPayServer.Payments.Lightning;
-using BTCPayServer.Security;
 using BTCPayServer.Services;
-using BTCPayServer.Services.Apps;
 using BTCPayServer.Services.Stores;
-using ExchangeSharp;
-using Google.Apis.Auth.OAuth2;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.FileProviders;
-using Microsoft.Extensions.Logging;
-using NBitcoin;
-using NBitcoin.Payment;
-using NBitpayClient;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
@@ -42,7 +29,6 @@ namespace BTCPayServer.Controllers
     {
         private readonly ThemeSettings _theme;
         private readonly StoreRepository _storeRepository;
-        private readonly BTCPayNetworkProvider _networkProvider;
         private IHttpClientFactory HttpClientFactory { get; }
         private SignInManager<ApplicationUser> SignInManager { get; }
 
@@ -54,14 +40,12 @@ namespace BTCPayServer.Controllers
                               ThemeSettings theme,
                               LanguageService languageService,
                               StoreRepository storeRepository,
-                              BTCPayNetworkProvider networkProvider,
                               IWebHostEnvironment environment,
                               SignInManager<ApplicationUser> signInManager)
         {
             _theme = theme;
             HttpClientFactory = httpClientFactory;
             LanguageService = languageService;
-            _networkProvider = networkProvider;
             _storeRepository = storeRepository;
             SignInManager = signInManager;
             _WebRootFileProvider = environment.WebRootFileProvider;
@@ -89,16 +73,17 @@ namespace BTCPayServer.Controllers
                 if (storeId != null)
                 {
                     // verify store exists and redirect to it
-                    var store = await _storeRepository.FindStore(storeId, userId);
+                    var store = await _storeRepository.FindStore(storeId);
                     if (store != null)
                     {
-                        return RedirectToStore(store);
+                        return RedirectToAction(nameof(UIStoresController.Index), "UIStores", new { storeId });
                     }
                 }
 
-                var stores = await _storeRepository.GetStoresByUserId(userId);
-                return stores.Any()
-                    ? RedirectToStore(stores.First())
+                var stores = await _storeRepository.GetStoresByUserId(userId!);
+                var activeStore = stores.FirstOrDefault(s => !s.Archived);
+                return activeStore != null
+                    ? RedirectToAction(nameof(UIStoresController.Index), "UIStores", new { storeId = activeStore.Id })
                     : RedirectToAction(nameof(UIUserStoresController.CreateStore), "UIUserStores");
             }
 
@@ -123,9 +108,7 @@ namespace BTCPayServer.Controllers
         public IActionResult GetTranslations(string resource, string lang)
         {
             string path;
-            if (resource == "checkout-v1")
-                path = "locales";
-            else if (resource == "checkout-v2")
+            if (resource.StartsWith("checkout"))
                 path = "locales/checkout";
             else
                 return NotFound();
@@ -209,13 +192,6 @@ namespace BTCPayServer.Controllers
         public IActionResult Error()
         {
             return View(new ErrorViewModel { RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier });
-        }
-
-        public RedirectToActionResult RedirectToStore(StoreData store)
-        {
-            return store.HasPermission(Policies.CanModifyStoreSettings)
-                ? RedirectToAction("Dashboard", "UIStores", new { storeId = store.Id })
-                : RedirectToAction("ListInvoices", "UIInvoice", new { storeId = store.Id });
         }
     }
 }

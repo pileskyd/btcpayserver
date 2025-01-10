@@ -1,5 +1,5 @@
-@using BTCPayServer.Models.AppViewModels
-@using BTCPayServer.Plugins.PointOfSale.Models
+@using BTCPayServer.Client.Models
+@using Microsoft.AspNetCore.Mvc.TagHelpers
 @model BTCPayServer.Plugins.Crowdfund.Models.ContributeToCrowdfund
 
 @{ var vm = Model.ViewCrowdfundViewModel; }
@@ -28,22 +28,23 @@
                         @(string.IsNullOrEmpty(item.Title) ? item.Id : item.Title)
                     </label>
                     <span class="text-muted">
-                        @if (item.Price.Value > 0)
+                        @if (item.Price is > 0)
                         {
                             <span>@item.Price.Value</span>
                             <span>@vm.TargetCurrency</span>
 
-                            if (item.Price.Type == ViewPointOfSaleViewModel.Item.ItemPrice.ItemPriceType.Minimum)
+                            if (item.PriceType == AppItemPriceType.Minimum)
                             {
-                                @Safe.Raw("or more")
+                                @Safe.Raw(StringLocalizer["or more"])
                             }
                         }
-                        else if (item.Price.Type != ViewPointOfSaleViewModel.Item.ItemPrice.ItemPriceType.Fixed )
+                        else if (item.PriceType == AppItemPriceType.Topup)
                         {
-                            @Safe.Raw("Any amount")
-                        }else if (item.Price.Type == ViewPointOfSaleViewModel.Item.ItemPrice.ItemPriceType.Fixed)
+                            @Safe.Raw(StringLocalizer["Any amount"])
+                        }
+                        else if (item.PriceType == AppItemPriceType.Fixed)
                         {
-                            @Safe.Raw("Free")
+                            @Safe.Raw(StringLocalizer["Free"])
                         }
                     </span>
                 </div>
@@ -56,11 +57,11 @@
                     {
                         case null:
                             break;
-                        case var i when i <= 0:
-                            <span>Sold out</span>
+                        case <= 0:
+                            <span text-translate="true">Sold out</span>
                             break;
                         default:
-                            <span>@item.Inventory left</span>
+                            <span>@StringLocalizer["{0} left", item.Inventory]</span>
                             break;
                     }
                     @if (hasCount)
@@ -92,6 +93,6 @@
             <span asp-validation-for="Amount" class="text-danger"></span>
         </div>
         <input type="hidden" asp-for="RedirectToCheckout"/>
-        <button type="submit" class="btn btn-primary">Contribute</button>
+        <button type="submit" class="btn btn-primary" text-translate="true">Contribute</button>
     }
 </form>

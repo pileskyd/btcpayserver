@@ -1,13 +1,11 @@
 using System;
 using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations.Schema;
 using System.Text;
-using BTCPayServer.Client;
 using BTCPayServer.Client.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-using PayoutProcessorData = BTCPayServer.Data.PayoutProcessorData;
+using Newtonsoft.Json.Linq;
 
 namespace BTCPayServer.Data
 {
@@ -37,8 +35,6 @@ namespace BTCPayServer.Data
 
         public byte[] StoreCertificate { get; set; }
 
-        [NotMapped] public string Role { get; set; }
-
         public string StoreBlob { get; set; }
 
         [Obsolete("Use GetDefaultPaymentId instead")]
@@ -49,32 +45,21 @@ namespace BTCPayServer.Data
         public IEnumerable<LightningAddressData> LightningAddresses { get; set; }
         public IEnumerable<PayoutProcessorData> PayoutProcessors { get; set; }
         public IEnumerable<PayoutData> Payouts { get; set; }
-        public IEnumerable<CustodianAccountData> CustodianAccounts { get; set; }
         public IEnumerable<StoreSettingData> Settings { get; set; }
         public IEnumerable<FormData> Forms { get; set; }
+        public IEnumerable<StoreRole> StoreRoles { get; set; }
+        public bool Archived { get; set; }
+        public IEnumerable<PendingTransaction> PendingTransactions { get; set; }
 
         internal static void OnModelCreating(ModelBuilder builder, DatabaseFacade databaseFacade)
         {
-            if (databaseFacade.IsNpgsql())
-            {
-                builder.Entity<StoreData>()
-                    .Property(o => o.StoreBlob)
-                    .HasColumnType("JSONB");
+            builder.Entity<StoreData>()
+                .Property(o => o.StoreBlob)
+                .HasColumnType("JSONB");
 
-                builder.Entity<StoreData>()
-                    .Property(o => o.DerivationStrategies)
-                    .HasColumnType("JSONB");
-            }
-            else if (databaseFacade.IsMySql())
-            {
-                builder.Entity<StoreData>()
-                    .Property(o => o.StoreBlob)
-                    .HasConversion(new ValueConverter<string, byte[]>
-                    (
-                        convertToProviderExpression: (str) => Encoding.UTF8.GetBytes(str),
-                        convertFromProviderExpression: (bytes) => Encoding.UTF8.GetString(bytes)
-                    ));
-            }
+            builder.Entity<StoreData>()
+                .Property(o => o.DerivationStrategies)
+                .HasColumnType("JSONB");
         }
     }
 }

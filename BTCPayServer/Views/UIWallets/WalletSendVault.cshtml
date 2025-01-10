@@ -5,7 +5,7 @@
     var cancelUrl = Model.ReturnUrl ?? Url.Action(nameof(UIWalletsController.WalletTransactions), new { walletId });
     var backUrl = Model.BackUrl != null ? $"{Model.BackUrl}?returnUrl={Model.ReturnUrl}" : null;
     Layout = "_LayoutWizard";
-    ViewData.SetActivePage(WalletsNavPages.Send, "Sign the transaction", walletId);
+    ViewData.SetActivePage(WalletsNavPages.Send, StringLocalizer["Sign the transaction"], walletId);
 }
 
 @section Navbar {
@@ -16,21 +16,16 @@
         </a>
     }
 	<a href="@Url.EnsureLocal(cancelUrl, Context.Request)" id="CancelWizard" class="cancel">
-        <vc:icon symbol="close" />
+        <vc:icon symbol="cross" />
     </a>
 }
 
 <header class="text-center">
     <h1>@ViewData["Title"]</h1>
-    <p class="lead text-secondary mt-3">Using BTCPay Server Vault</p>
+    <p class="lead text-secondary mt-3" text-translate="true">Using BTCPay Server Vault</p>
 </header>
 
-<div id="walletAlert" class="alert alert-warning alert-dismissible my-4" style="display:none;" role="alert">
-    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close">
-        <vc:icon symbol="close" />
-    </button>
-    <span id="alertMessage"></span>
-</div>
+<partial name="LocalhostBrowserSupport" />
 
 <div id="body" class="my-4">
     <form id="broadcastForm" asp-action="WalletSendVault" asp-route-walletId="@walletId" method="post" style="display:none;">
@@ -41,7 +36,7 @@
         <partial name="SigningContext" for="SigningContext" />
     </form>
     <div id="vaultPlaceholder"></div>
-    <button id="vault-retry" class="btn btn-primary" style="display:none;" type="button">Retry</button>
+    <button id="vault-retry" class="btn btn-primary" style="display:none;" type="button" text-translate="true">Retry</button>
     <button id="vault-confirm" class="btn btn-primary" style="display:none;"></button>
 </div>
 
@@ -77,19 +72,5 @@
         document.addEventListener("DOMContentLoaded", function () {
             askSign();
         });
-		var alertMsg = document.getElementById("alertMessage");
-		var walletAlert = document.getElementById("walletAlert");
-		var isSafari = window.safari !== undefined;
-		if (isSafari)
-		{
-			alertMsg.innerHTML = "Safari doesn't support BTCPay Server Vault. Please use a different browser. (<a class=\"alert-link\" href=\"https://bugs.webkit.org/show_bug.cgi?id=171934\" target=\"_blank\" rel=\"noreferrer noopener\">More information</a>)";
-			walletAlert.style.display = null;
-		}
-		var isBrave = navigator.brave !== undefined;
-		if (isBrave)
-		{
-			alertMsg.innerHTML = "Brave supports BTCPay Server Vault, but you need to disable Brave Shields. (<a class=\"alert-link\" href=\"https://www.updateland.com/how-to-turn-off-brave-shields/\" target=\"_blank\" rel=\"noreferrer noopener\">More information</a>)";
-			walletAlert.style.display = null;
-		}
     </script>
 }

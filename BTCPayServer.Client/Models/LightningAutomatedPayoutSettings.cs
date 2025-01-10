@@ -6,8 +6,12 @@ namespace BTCPayServer.Client.Models;
 
 public class LightningAutomatedPayoutSettings
 {
-    public string PaymentMethod { get; set; }
+    public string PayoutMethodId { get; set; }
 
     [JsonConverter(typeof(TimeSpanJsonConverter.Seconds))]
     public TimeSpan IntervalSeconds { get; set; }
+
+    [JsonProperty(DefaultValueHandling = DefaultValueHandling.Populate)]
+    public bool  ProcessNewPayoutsInstantly { get; set; }
+    
 }

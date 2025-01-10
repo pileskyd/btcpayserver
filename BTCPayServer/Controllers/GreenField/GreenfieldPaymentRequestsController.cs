@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection.Metadata;
 using System.Threading;
 using System.Threading.Tasks;
 using BTCPayServer.Abstractions.Constants;
@@ -10,7 +9,6 @@ using BTCPayServer.Client;
 using BTCPayServer.Client.Models;
 using BTCPayServer.Data;
 using BTCPayServer.PaymentRequest;
-using BTCPayServer.Security;
 using BTCPayServer.Services.Invoices;
 using BTCPayServer.Services.PaymentRequests;
 using BTCPayServer.Services.Rates;
@@ -146,9 +144,7 @@ namespace BTCPayServer.Controllers.Greenfield
                 return PaymentRequestNotFound();
             }
 
-            var updatedPr = pr.First();
-            updatedPr.Archived = true;
-            await _paymentRequestRepository.CreateOrUpdatePaymentRequest(updatedPr);
+            await _paymentRequestRepository.ArchivePaymentRequest(pr.First().Id);
             return Ok();
         }
 
@@ -170,6 +166,8 @@ namespace BTCPayServer.Controllers.Greenfield
                 Status = Client.Models.PaymentRequestData.PaymentRequestStatus.Pending,
                 Created = DateTimeOffset.UtcNow
             };
+            request.FormResponse = null;
+            request.StoreId = storeId;
             pr.SetBlob(request);
             pr = await _paymentRequestRepository.CreateOrUpdatePaymentRequest(pr);
             return Ok(FromModel(pr));
@@ -198,6 +196,9 @@ namespace BTCPayServer.Controllers.Greenfield
             }
 
             var updatedPr = pr.First();
+            var blob = updatedPr.GetBlob();
+            request.FormResponse = blob.FormResponse;
+            request.StoreId = storeId;
             updatedPr.SetBlob(request);
 
             return Ok(FromModel(await _paymentRequestRepository.CreateOrUpdatePaymentRequest(updatedPr)));
@@ -231,9 +232,6 @@ namespace BTCPayServer.Controllers.Greenfield
             if (string.IsNullOrEmpty(data.Title))
                 ModelState.AddModelError(nameof(data.Title), "Title is required");
 
-            if (!string.IsNullOrEmpty(data.CustomCSSLink) && data.CustomCSSLink.Length > 500)
-                ModelState.AddModelError(nameof(data.CustomCSSLink), "CustomCSSLink is 500 chars max");
-
             return !ModelState.IsValid ? this.CreateValidationError(ModelState) : null;
         }
 
@@ -254,8 +252,8 @@ namespace BTCPayServer.Controllers.Greenfield
                 ExpiryDate = blob.ExpiryDate,
                 Email = blob.Email,
                 AllowCustomPaymentAmounts = blob.AllowCustomPaymentAmounts,
-                EmbeddedCSS = blob.EmbeddedCSS,
-                CustomCSSLink = blob.CustomCSSLink
+                FormResponse = blob.FormResponse,
+                FormId = blob.FormId
             };
         }
 
