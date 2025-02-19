@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -18,6 +19,19 @@ namespace BTCPayServer.Tests
 {
     public static class Extensions
     {
+        public static Task<NewTransactionEvent> WaitReceive(this NBXplorer.WebsocketNotificationSession notifications, DerivationStrategyBase target, Func<NewTransactionEvent, bool> predicate = null, CancellationToken cancellationToken = default)
+        => WaitNext<NewTransactionEvent>(notifications, e => e.DerivationStrategy == target && (predicate is null || predicate(e)), cancellationToken);
+        public static async Task<TEvent> WaitNext<TEvent>(this NBXplorer.WebsocketNotificationSession notifications, Func<TEvent, bool> predicate, CancellationToken cancellationToken = default) where TEvent : NewEventBase
+        {
+            retry:
+            var evt = await notifications.NextEventAsync(cancellationToken);
+            if (evt is TEvent { } e)
+            {
+                if (predicate(e))
+                    return e;
+            }
+            goto retry;
+        }
         public static Task<KeyPathInformation> ReserveAddressAsync(this BTCPayWallet wallet, DerivationStrategyBase derivationStrategyBase)
         {
             return wallet.ReserveAddressAsync(null, derivationStrategyBase, "test");
@@ -97,7 +111,7 @@ retry:
                 }
                 Thread.Sleep(50);
             }
-            Assert.False(true, "Elements was found");
+            Assert.Fail("Elements was found");
         }
 
         public static void UntilJsIsReady(this WebDriverWait wait)
@@ -120,6 +134,13 @@ retry:
         public static void InvokeJSFunction(this IWebDriver driver, string element, string funcName)
         {
             driver.ExecuteJavaScript($"document.getElementById('{element}').{funcName}()");
+        }
+
+        public static void WaitWalletTransactionsLoaded(this IWebDriver driver)
+        {
+            var wait = new WebDriverWait(driver, SeleniumTester.ImplicitWait);
+            wait.UntilJsIsReady();
+            wait.Until(d => d.WaitForElement(By.CssSelector("#WalletTransactions[data-loaded='true']")));
         }
 
         public static IWebElement WaitForElement(this IWebDriver driver, By selector)
@@ -191,7 +212,9 @@ retry:
 
         public static bool ElementDoesNotExist(this IWebDriver driver, By selector)
         {
-            Assert.Throws<NoSuchElementException>(() =>
+            Assert.Throws<NoSuchElementException>(
+            [DebuggerStepThrough]
+            () =>
             {
                 driver.FindElement(selector);
             });

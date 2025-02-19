@@ -1,8 +1,8 @@
-#if ALTCOINS
 using System.Collections.Generic;
 using System.Linq;
 using BTCPayServer.Abstractions.Contracts;
 using BTCPayServer.Client.Models;
+using BTCPayServer.Payments;
 
 namespace BTCPayServer.Services.Altcoins.Zcash.Services
 {
@@ -25,7 +25,7 @@ namespace BTCPayServer.Services.Altcoins.Zcash.Services
         {
             return _ZcashRpcProvider.Summaries.Select(pair => new ZcashSyncStatus()
             {
-                Summary = pair.Value, CryptoCode = pair.Key
+                Summary = pair.Value, PaymentMethodId = PaymentMethodId.Parse(pair.Key).ToString()
             });
         }
     }
@@ -43,4 +43,3 @@ namespace BTCPayServer.Services.Altcoins.Zcash.Services
         public ZcashRPCProvider.ZcashLikeSummary Summary { get; set; }
     }
 }
-#endif

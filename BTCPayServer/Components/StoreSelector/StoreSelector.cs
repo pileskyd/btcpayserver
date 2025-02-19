@@ -1,27 +1,28 @@
 using System.Linq;
 using System.Threading.Tasks;
+using BTCPayServer.Abstractions.Extensions;
 using BTCPayServer.Data;
+using BTCPayServer.Services;
 using BTCPayServer.Services.Stores;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Rendering;
 
 namespace BTCPayServer.Components.StoreSelector
 {
     public class StoreSelector : ViewComponent
     {
         private readonly StoreRepository _storeRepo;
-        private readonly BTCPayNetworkProvider _networkProvider;
+        private readonly UriResolver _uriResolver;
         private readonly UserManager<ApplicationUser> _userManager;
 
         public StoreSelector(
             StoreRepository storeRepo,
-            BTCPayNetworkProvider networkProvider,
+            UriResolver uriResolver,
             UserManager<ApplicationUser> userManager)
         {
             _storeRepo = storeRepo;
+            _uriResolver = uriResolver;
             _userManager = userManager;
-            _networkProvider = networkProvider;
         }
 
         public async Task<IViewComponentResult> InvokeAsync()
@@ -29,23 +30,14 @@ namespace BTCPayServer.Components.StoreSelector
             var userId = _userManager.GetUserId(UserClaimsPrincipal);
             var stores = await _storeRepo.GetStoresByUserId(userId);
             var currentStore = ViewContext.HttpContext.GetStoreData();
+            var archivedCount = stores.Count(s => s.Archived);
             var options = stores
-                .Select(store =>
+                .Where(store => !store.Archived)
+                .Select(store => new StoreSelectorOption
                 {
-                    var cryptoCode = store
-                        .GetSupportedPaymentMethods(_networkProvider)
-                        .OfType<DerivationSchemeSettings>()
-                        .FirstOrDefault()?
-                        .Network.CryptoCode;
-                    var walletId = cryptoCode != null ? new WalletId(store.Id, cryptoCode) : null;
-                    return new StoreSelectorOption
-                    {
-                        Text = store.StoreName,
-                        Value = store.Id,
-                        Selected = store.Id == currentStore?.Id,
-                        IsOwner = store.Role == StoreRoles.Owner,
-                        WalletId = walletId
-                    };
+                    Text = store.StoreName,
+                    Value = store.Id,
+                    Selected = store.Id == currentStore?.Id
                 })
                 .OrderBy(s => s.Text)
                 .ToList();
@@ -57,8 +49,8 @@ namespace BTCPayServer.Components.StoreSelector
                 Options = options,
                 CurrentStoreId = currentStore?.Id,
                 CurrentDisplayName = currentStore?.StoreName,
-                CurrentStoreIsOwner = currentStore?.Role == StoreRoles.Owner,
-                CurrentStoreLogoFileId = blob?.LogoFileId
+                CurrentStoreLogoUrl = await _uriResolver.Resolve(Request.GetAbsoluteRootUri(), blob?.LogoUrl),
+                ArchivedCount = archivedCount
             };
 
             return View(vm);

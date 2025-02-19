@@ -7,13 +7,13 @@ using System.Threading.Tasks;
 using BTCPayServer.Abstractions.Contracts;
 using BTCPayServer.Abstractions.Models;
 using BTCPayServer.Abstractions.Services;
+using BTCPayServer.Client.Models;
 using BTCPayServer.Configuration;
 using BTCPayServer.Data;
 using BTCPayServer.Plugins.PointOfSale.Controllers;
 using BTCPayServer.Services;
 using BTCPayServer.Services.Apps;
 using BTCPayServer.Services.Invoices;
-using Ganss.XSS;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -28,7 +28,7 @@ namespace BTCPayServer.Plugins.PointOfSale
 
         public override void Execute(IServiceCollection services)
         {
-            services.AddSingleton<IUIExtension>(new UIExtension("PointOfSale/NavExtension", "header-nav"));
+            services.AddUIExtension("header-nav", "PointOfSale/NavExtension");
             services.AddSingleton<AppBaseType, PointOfSaleAppType>();
             base.Execute(services);
         }
@@ -40,7 +40,7 @@ namespace BTCPayServer.Plugins.PointOfSale
         Static,
         [Display(Name = "Product list with cart")]
         Cart,
-        [Display(Name = "Keypad only")]
+        [Display(Name = "Keypad")]
         Light,
         [Display(Name = "Print display")]
         Print
@@ -51,21 +51,18 @@ namespace BTCPayServer.Plugins.PointOfSale
         private readonly LinkGenerator _linkGenerator;
         private readonly IOptions<BTCPayServerOptions> _btcPayServerOptions;
         private readonly DisplayFormatter _displayFormatter;
-        private readonly HtmlSanitizer _htmlSanitizer;
         public const string AppType = "PointOfSale";
 
         public PointOfSaleAppType(
             LinkGenerator linkGenerator,
             IOptions<BTCPayServerOptions> btcPayServerOptions,
-            DisplayFormatter displayFormatter,
-            HtmlSanitizer htmlSanitizer)
+            DisplayFormatter displayFormatter)
         {
             Type = AppType;
             Description = "Point of Sale";
             _linkGenerator = linkGenerator;
             _btcPayServerOptions = btcPayServerOptions;
             _displayFormatter = displayFormatter;
-            _htmlSanitizer = htmlSanitizer;
         }
 
         public override Task<string> ConfigureLink(AppData app)
@@ -79,17 +76,17 @@ namespace BTCPayServer.Plugins.PointOfSale
             return Task.FromResult<object?>(null);
         }
 
-        public Task<SalesStats> GetSalesStats(AppData app, InvoiceEntity[] paidInvoices, int numberOfDays)
+        public Task<AppSalesStats> GetSalesStats(AppData app, InvoiceEntity[] paidInvoices, int numberOfDays)
         {
             var posS = app.GetSettings<PointOfSaleSettings>();
-            var items = AppService.Parse(_htmlSanitizer, _displayFormatter, posS.Template, posS.Currency);
+            var items = AppService.Parse(posS.Template);
             return AppService.GetSalesStatswithPOSItems(items, paidInvoices, numberOfDays);
         }
 
-        public Task<IEnumerable<ItemStats>> GetItemStats(AppData appData, InvoiceEntity[] paidInvoices)
+        public Task<IEnumerable<AppItemStats>> GetItemStats(AppData appData, InvoiceEntity[] paidInvoices)
         {
             var settings = appData.GetSettings<PointOfSaleSettings>();
-            var items = AppService.Parse(_htmlSanitizer, _displayFormatter, settings.Template, settings.Currency);
+            var items = AppService.Parse(settings.Template);
             var itemCount = paidInvoices
                 .Where(entity => entity.Currency.Equals(settings.Currency, StringComparison.OrdinalIgnoreCase) && (
                     // The POS data is present for the cart view, where multiple items can be bought
@@ -104,7 +101,7 @@ namespace BTCPayServer.Plugins.PointOfSale
                     var total = entities.Sum(entity => entity.FiatPrice);
                     var itemCode = entities.Key;
                     var item = items.FirstOrDefault(p => p.Id == itemCode);
-                    return new ItemStats
+                    return new AppItemStats
                     {
                         ItemCode = itemCode,
                         Title = item?.Title ?? itemCode,
@@ -115,12 +112,12 @@ namespace BTCPayServer.Plugins.PointOfSale
                 })
                 .OrderByDescending(stats => stats.SalesCount);
 
-            return Task.FromResult<IEnumerable<ItemStats>>(itemCount);
+            return Task.FromResult<IEnumerable<AppItemStats>>(itemCount);
         }
 
         public override Task SetDefaultSettings(AppData appData, string defaultCurrency)
         {
-            var empty = new PointOfSaleSettings { Currency = defaultCurrency };
+            var empty = new PointOfSaleSettings { Title = appData.Name, Currency = defaultCurrency };
             appData.SetSettings(empty);
             return Task.CompletedTask;
         }

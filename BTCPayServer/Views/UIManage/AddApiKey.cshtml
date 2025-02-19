@@ -25,15 +25,26 @@
     </script>
 }
 
-<h3 class="mb-3">@ViewData["Title"]</h3>
-
-<div class="row">
-    <div class="col-xl-10 col-xxl-constrain">
-        <p>Generate a new api key to use BTCPay through its API.</p>
-        
-        <form method="post" asp-action="AddApiKey" id="Permissions">
-            <div asp-validation-summary="All" class="text-danger"></div>
-        
+<form method="post" asp-action="AddApiKey" id="Permissions">
+    <div class="sticky-header">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item">
+                    <a asp-action="APIKeys" text-translate="true">API Keys</a>
+                </li>
+                <li class="breadcrumb-item active" aria-current="page" text-translate="true">@ViewData["Title"]</li>
+            </ol>
+            <h2 text-translate="true">@ViewData["Title"]</h2>
+        </nav>
+		<button id="page-primary" type="submit" class="btn btn-primary">Generate API Key</button>
+    </div>
+    <p text-translate="true">Generate a new api key to use BTCPay through its API.</p>
+    <div class="row">
+        <div class="col-xl-10 col-xxl-constrain">
+            @if (!ViewContext.ModelState.IsValid)
+            {
+                <div asp-validation-summary="All"></div>
+            }
             <div class="form-group">
                 <label asp-for="Label" class="form-label"></label>
                 <input asp-for="Label" class="form-control"/>
@@ -57,7 +68,7 @@
                                 <input type="hidden" asp-for="PermissionValues[i].StoreMode" value="@Model.PermissionValues[i].StoreMode" />
                                 @if (Model.PermissionValues[i].StoreMode == UIManageController.AddApiKeyViewModel.ApiKeyStoreMode.AllStores)
                                 {
-                                    <div class="form-check">
+                                    <div class="form-check mb-0">
                                         <input id="@Model.PermissionValues[i].Permission" type="checkbox" asp-for="PermissionValues[i].Value" class="form-check-input ms-n4"/>
                                         <label for="@Model.PermissionValues[i].Permission" class="h5 form-check-label me-2 mb-1">
                                             <span class="me-lg-1">@Model.PermissionValues[i].Title</span>
@@ -84,7 +95,8 @@
         
                                     @if (!Model.Stores.Any())
                                     {
-                                        <p class="text-warning mt-2 mb-0">
+                                        <p class="info-note text-warning mt-2 mb-0">
+                                            <vc:icon symbol="warning"/>
                                             You currently have no stores configured.
                                         </p>
                                     }
@@ -101,14 +113,14 @@
                                                 <select asp-for="PermissionValues[i].SpecificStores[index]" class="form-select w-auto flex-grow-0" asp-items="@(new SelectList(new[] {store}, nameof(StoreData.Id), nameof(StoreData.StoreName), store.Id))"></select>
                                             }
                                             <span asp-validation-for="PermissionValues[i].SpecificStores[index]" class="text-danger"></span>
-                                            <button type="submit" title="Remove Store Permission" name="command" value="@($"{Model.PermissionValues[i].Permission}:remove-store:{index}")" class="btn btn-danger">
+                                            <button type="submit" title="@StringLocalizer["Remove Store Permission"]" name="command" value="@($"{Model.PermissionValues[i].Permission}:remove-store:{index}")" class="btn btn-danger">
                                                 Remove
                                             </button>
                                         </div>
                                     }
                                     @if (Model.PermissionValues[i].SpecificStores.Count < Model.Stores.Length)
                                     {
-                                        <div class="mt-3 mb-2">
+                                        <div class="mt-3">
                                             <button type="submit" name="command" value="@($"{Model.PermissionValues[i].Permission}:add-store")" class="btn btn-secondary">Add another store</button>
                                         </div>
                                     }
@@ -116,7 +128,7 @@
                             }
                             else
                             {
-                                <div class="form-check">
+                                <div class="form-check mb-0">
                                     <input id="@Model.PermissionValues[i].Permission" type="checkbox" asp-for="PermissionValues[i].Value" class="form-check-input ms-n4" />
                                     <label for="@Model.PermissionValues[i].Permission" class="h5 form-check-label me-2 mb-1">
                                         <span class="me-lg-1">@Model.PermissionValues[i].Title</span>
@@ -132,8 +144,6 @@
                     }
                 }
             </div>
-        
-            <button type="submit" class="btn btn-primary" id="Generate">Generate API Key</button>
-        </form>
+        </div>
     </div>
-</div>
+</form>

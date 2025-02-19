@@ -1,8 +1,7 @@
-using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using BTCPayServer.Data;
+using BTCPayServer.Models.InvoicingModels;
 using BTCPayServer.Services.Invoices;
 using BTCPayServer.Services.Rates;
 using BTCPayServer.Services.Stores;
@@ -33,12 +32,15 @@ public class StoreRecentInvoices : ViewComponent
         _dbContextFactory = dbContextFactory;
     }
 
-    public async Task<IViewComponentResult> InvokeAsync(StoreRecentInvoicesViewModel vm)
+    public async Task<IViewComponentResult> InvokeAsync(StoreData store, string cryptoCode, bool initialRendering)
     {
-        if (vm.Store == null)
-            throw new ArgumentNullException(nameof(vm.Store));
-        if (vm.CryptoCode == null)
-            throw new ArgumentNullException(nameof(vm.CryptoCode));
+        var vm = new StoreRecentInvoicesViewModel
+        {
+            StoreId = store.Id,
+            CryptoCode = cryptoCode,
+            InitialRendering = initialRendering
+        };
+
         if (vm.InitialRendering)
             return View(vm);
 
@@ -46,24 +48,29 @@ public class StoreRecentInvoices : ViewComponent
         var invoiceEntities = await _invoiceRepo.GetInvoices(new InvoiceQuery
         {
             UserId = userId,
-            StoreId = new[] { vm.Store.Id },
+            StoreId = [store.Id],
             IncludeArchived = false,
             IncludeRefunds = true,
             Take = 5
         });
 
         vm.Invoices = (from invoice in invoiceEntities
-                       let state = invoice.GetInvoiceState()
-                       select new StoreRecentInvoiceViewModel
-                       {
-                           Date = invoice.InvoiceTime,
-                           Status = state,
-                           HasRefund = invoice.Refunds.Any(),
-                           InvoiceId = invoice.Id,
-                           OrderId = invoice.Metadata.OrderId ?? string.Empty,
-                           Amount = invoice.Price,
-                           Currency = invoice.Currency
-                       }).ToList();
+            let state = invoice.GetInvoiceState()
+            select new StoreRecentInvoiceViewModel
+            {
+                Date = invoice.InvoiceTime, 
+                Status = state, 
+                HasRefund = invoice.Refunds.Any(), 
+                InvoiceId = invoice.Id,
+                OrderId = invoice.Metadata.OrderId ?? string.Empty, 
+                Amount = invoice.Price,
+                Currency = invoice.Currency,
+                Details = new InvoiceDetailsModel
+                {
+                    Archived = invoice.Archived,
+                    Payments = invoice.GetPayments(false)
+                }
+           }).ToList();
 
         return View(vm);
     }
